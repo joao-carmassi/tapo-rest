@@ -144,7 +144,7 @@ build_router! {
     use mod {
         pub use axum::Json;
         pub use tapo::{
-            requests::{Color, LightingEffectPreset, EnergyDataInterval},
+            requests::{Color, ColorLightSetDeviceInfoParams, LightingEffectPreset, EnergyDataInterval},
             responses::{
                 CurrentPowerResult,
                 DeviceInfoLightResult,
@@ -163,6 +163,37 @@ build_router! {
             }
         };
         pub use chrono::NaiveDate;
+
+        /// Fill a `set` builder from optional query parameters, so brightness and
+        /// color reach the device in a single request (and a single transition).
+        pub fn fill_color_light_params(
+            mut params: ColorLightSetDeviceInfoParams,
+            brightness: Option<u8>,
+            hue: Option<u16>,
+            saturation: Option<u8>,
+            color_temperature: Option<u16>,
+        ) -> crate::server::ApiResult<ColorLightSetDeviceInfoParams> {
+            use axum::http::StatusCode;
+            use crate::server::ApiError;
+
+            if let Some(brightness) = brightness {
+                params = params.brightness(brightness);
+            }
+
+            match (hue, saturation, color_temperature) {
+                (None, None, None) => {}
+                (Some(hue), Some(saturation), None) => params = params.hue_saturation(hue, saturation),
+                (None, None, Some(color_temperature)) => params = params.color_temperature(color_temperature),
+                _ => {
+                    return Err(ApiError::new(
+                        StatusCode::BAD_REQUEST,
+                        "Provide either both hue and saturation, or color_temperature, but not both",
+                    ))
+                }
+            }
+
+            Ok(params)
+        }
     }
 
     L510, L520, L610 ("bulb") {
@@ -212,6 +243,19 @@ build_router! {
             client.set_color_temperature(color_temperature).await.map_err(Into::into)
         }
 
+        async fn set(
+            &state, &client,
+            brightness: Option<u8>,
+            hue: Option<u16>,
+            saturation: Option<u8>,
+            color_temperature: Option<u16>
+        ) -> () {
+            match fill_color_light_params(client.set(), brightness, hue, saturation, color_temperature) {
+                Ok(params) => params.send(client).await.map_err(Into::into),
+                Err(err) => Err(err),
+            }
+        }
+
         async fn get_device_info(&state, &client) -> Json<DeviceInfoColorLightResult> {
             Ok(Json(client.get_device_info().await?))
         }
@@ -246,6 +290,19 @@ build_router! {
             client.set_color_temperature(color_temperature).await.map_err(Into::into)
         }
 
+        async fn set(
+            &state, &client,
+            brightness: Option<u8>,
+            hue: Option<u16>,
+            saturation: Option<u8>,
+            color_temperature: Option<u16>
+        ) -> () {
+            match fill_color_light_params(client.set(), brightness, hue, saturation, color_temperature) {
+                Ok(params) => params.send(client).await.map_err(Into::into),
+                Err(err) => Err(err),
+            }
+        }
+
         async fn get_device_info(&state, &client) -> Json<DeviceInfoRgbLightStripResult> {
             Ok(Json(client.get_device_info().await?))
         }
@@ -278,6 +335,19 @@ build_router! {
 
         async fn set_color_temperature(&state, &client, color_temperature: u16) -> () {
             client.set_color_temperature(color_temperature).await.map_err(Into::into)
+        }
+
+        async fn set(
+            &state, &client,
+            brightness: Option<u8>,
+            hue: Option<u16>,
+            saturation: Option<u8>,
+            color_temperature: Option<u16>
+        ) -> () {
+            match fill_color_light_params(client.set(), brightness, hue, saturation, color_temperature) {
+                Ok(params) => params.send(client).await.map_err(Into::into),
+                Err(err) => Err(err),
+            }
         }
 
         async fn set_lighting_effect(&state, &client, lighting_effect: LightingEffectPreset) -> () {
