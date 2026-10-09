@@ -62,7 +62,7 @@ macro_rules! build_router {
             use paste::paste;
             use serde::Deserialize;
             use axum::{
-                extract::{Query, State},
+                extract::{Query, RawQuery, State},
                 http::StatusCode,
             };
             use crate::{
@@ -99,8 +99,11 @@ macro_rules! build_router {
 
                 pub(super) async fn $action_name(
                     Query(query): Query<paste! { [<$action_name:camel Params>] }>,
-                    State(state): State<SharedState>
+                    State(state): State<SharedState>,
+                    RawQuery(raw_query): RawQuery
                 ) -> ApiResult<$ret_type> {
+                    let started = std::time::Instant::now();
+                    let result: ApiResult<$ret_type> = async {
                     paste! { let [<$action_name:camel Params>] { device $(, $param_name)* } = query; };
 
                     // TODO: session expiration, etc.?
@@ -134,6 +137,24 @@ macro_rules! build_router {
                         })
                         .await
                         .map_err(ApiError::from)?
+                    }.await;
+
+                    match &result {
+                        Ok(_) => log::info!(
+                            "{} {} -> ok in {}ms",
+                            stringify!($action_name),
+                            raw_query.as_deref().unwrap_or(""),
+                            started.elapsed().as_millis()
+                        ),
+                        Err(e) => log::info!(
+                            "{} {} -> ERR {} in {}ms",
+                            stringify!($action_name),
+                            raw_query.as_deref().unwrap_or(""),
+                            e.log_summary(),
+                            started.elapsed().as_millis()
+                        ),
+                    }
+                    result
                 }
             )+
         }) +

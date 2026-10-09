@@ -17,6 +17,10 @@ impl ApiError {
             message: message.into(),
         }
     }
+
+    pub fn log_summary(&self) -> String {
+        format!("{} {}", self.code.as_u16(), self.message)
+    }
 }
 
 impl IntoResponse for ApiError {

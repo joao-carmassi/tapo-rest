@@ -26,7 +26,11 @@ impl Log for Logger {
             return;
         }
 
-        let msg = record.args().to_string();
+        let msg = format!(
+            "{} {}",
+            chrono::Local::now().format("%H:%M:%S%.3f"),
+            record.args()
+        );
 
         let colored = match record.level() {
             Level::Error => msg.bright_red(),
