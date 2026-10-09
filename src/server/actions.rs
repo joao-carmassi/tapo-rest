@@ -256,18 +256,6 @@ build_router! {
             }
         }
 
-        // Send `set_device_info` params as given (JSON), to try fields the
-        // `set` builder does not expose or always adds (it forces `color_temp: 0`
-        // alongside hue and saturation).
-        async fn set_raw(&state, &client, json: String) -> () {
-            use tapo::HandlerExt;
-
-            let params: serde_json::Value = serde_json::from_str(&json)
-                .map_err(|err| ApiError::new(StatusCode::BAD_REQUEST, format!("Invalid JSON: {err}")))?;
-
-            client.get_client().await.set_device_info(params).await.map_err(Into::into)
-        }
-
         async fn get_device_info(&state, &client) -> Json<DeviceInfoColorLightResult> {
             Ok(Json(client.get_device_info().await?))
         }
