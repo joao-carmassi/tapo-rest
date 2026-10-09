@@ -16,9 +16,9 @@ use crate::{
 };
 
 // ponytail: one timeout covers the handshake and every command (tapo 0.9 has a
-// single knob); a weak Wi-Fi drop now fails in 2 s instead of freezing for 30 s.
+// single knob); on weak Wi-Fi good replies took up to ~1.8 s, so 2 s cut them off; 5 s still fails a drop long before tapo's 30 s default.
 // Split it if handshakes start failing.
-const DEVICE_TIMEOUT: Duration = Duration::from_secs(2);
+const DEVICE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct TapoDevice {
     conn_infos: TapoConnectionInfos,
