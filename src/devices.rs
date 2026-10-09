@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use log::debug;
@@ -13,6 +14,11 @@ use crate::{
     config::{TapoConnectionInfos, TapoCredentials},
     server::TapoDeviceType,
 };
+
+// ponytail: one timeout covers the handshake and every command (tapo 0.9 has a
+// single knob); a weak Wi-Fi drop now fails in 2 s instead of freezing for 30 s.
+// Split it if handshakes start failing.
+const DEVICE_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub struct TapoDevice {
     conn_infos: TapoConnectionInfos,
@@ -109,7 +115,7 @@ impl TapoDevice {
 
         let TapoCredentials { email, password } = &*self.credentials;
 
-        let tapo_client = ApiClient::new(email, password);
+        let tapo_client = ApiClient::new(email, password).with_timeout(DEVICE_TIMEOUT);
 
         let ip_addr = ip_addr.to_string();
 
