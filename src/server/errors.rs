@@ -18,6 +18,10 @@ impl ApiError {
         }
     }
 
+    pub fn is_session_expired(&self) -> bool {
+        self.message.contains("SESSION_TIMEOUT")
+    }
+
     pub fn log_summary(&self) -> String {
         format!("{} {}", self.code.as_u16(), self.message)
     }

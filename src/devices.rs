@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use log::debug;
+use log::{debug, info};
 use tapo::{
     ApiClient, ColorLightHandler, LightHandler, PlugEnergyMonitoringHandler, PlugHandler,
     PowerStripEnergyMonitoringHandler, PowerStripHandler, RgbLightStripHandler,
@@ -104,6 +104,19 @@ impl TapoDevice {
             Ok(())
         })
         .await?
+    }
+
+    /// Re-authenticate after a session timeout; on failure drop the cached
+    /// connection so the next request reconnects from scratch.
+    pub async fn reauthenticate(&self) {
+        let name = &self.conn_infos.name;
+        match self.refresh_session().await {
+            Ok(()) => info!("{name}: session expired, re-authenticated"),
+            Err(err) => {
+                info!("{name}: session expired, re-authentication failed: {err}");
+                *self.client.write().await = None;
+            }
+        }
     }
 
     async fn _establish_conn(&self) -> Result<TapoDeviceInner> {

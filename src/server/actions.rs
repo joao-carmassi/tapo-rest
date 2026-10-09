@@ -106,8 +106,6 @@ macro_rules! build_router {
                     let result: ApiResult<$ret_type> = async {
                     paste! { let [<$action_name:camel Params>] { device $(, $param_name)* } = query; };
 
-                    // TODO: session expiration, etc.?
-
                     let loaded_config = state.loaded_config.read().await;
 
                     let device = loaded_config.devices.get(&device).ok_or(ApiError::new(
@@ -118,25 +116,37 @@ macro_rules! build_router {
                     #[allow(unused_variables)]
                     let $state_var = &state;
 
-                    device
-                        .with_client(async move |client| {
-                            let client = validate_client_type!(client).ok_or_else(|| {
-                                ApiError::new(
-                                    StatusCode::BAD_REQUEST,
-                                    format!(
-                                        "This route is reserved to {} devices, but the provided name refers to a {} device",
-                                        DEVICE_NAME.join(", "),
-                                        client.type_name()
+                    let mut retried = false;
+                    loop {
+                        $( let $param_name = $param_name.clone(); )*
+                        let result: ApiResult<$ret_type> = device
+                            .with_client(async move |client| {
+                                let client = validate_client_type!(client).ok_or_else(|| {
+                                    ApiError::new(
+                                        StatusCode::BAD_REQUEST,
+                                        format!(
+                                            "This route is reserved to {} devices, but the provided name refers to a {} device",
+                                            DEVICE_NAME.join(", "),
+                                            client.type_name()
+                                        )
                                     )
-                                )
-                            })?;
+                                })?;
 
-                            let $client_var = client;
+                                let $client_var = client;
 
-                            $fn_inner
-                        })
-                        .await
-                        .map_err(ApiError::from)?
+                                $fn_inner
+                            })
+                            .await
+                            .map_err(ApiError::from)?;
+
+                        // Session expired: re-authenticate once (no lock held here) and retry.
+                        if !retried && matches!(&result, Err(e) if e.is_session_expired()) {
+                            retried = true;
+                            device.reauthenticate().await;
+                            continue;
+                        }
+                        break result;
+                    }
                     }.await;
 
                     match &result {
